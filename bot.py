@@ -17,7 +17,8 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 ## Set the time for the message task to run each date
 ## Currently set to 10AM Eastern Time (2PM UTC Time)
 utc = timezone.utc
-runtime = time(hour=14, minute=0, tzinfo=utc)
+holiday_runtime = time(hour=14, minute=0, tzinfo=utc)
+history_runtime = time(hour=16, minute=0, tzinfo=utc)
 
 def get_holiday():
     ## Select a random holiday from holidays.json for today's date
@@ -30,6 +31,18 @@ def get_holiday():
 
     return holiday_name, holiday_link
 
+def get_history():
+    ## Select a random historical event from hisotry.json for today's date
+    history_df = pd.read_json('history.json')
+    today = pd.to_datetime(datetime.today().strftime('%Y-%m-%d'))
+    history_df = history_df.loc[history_df['Date'] == today]
+    history_row = history_df.sample()
+    history_year = history_row['Year'].item()
+    history_event = history_row['Event'].item()
+    history_description = history_row['Description'].item()
+
+    return str(history_year), history_event, history_description
+
 def get_random_member(server_input):
     ## Select a member of the server at random and make sure member is not a bot
     member = random.choice(server_input.guild.members)
@@ -37,7 +50,7 @@ def get_random_member(server_input):
         member = random.choice(server_input.guild.members)
     return member
 
-def get_messages(holiday_name: str, holiday_link, member):
+def get_holiday_messages(holiday_name: str, holiday_link, member):
     ## Create messages/embeds that the bot will send out
     response1 = f'🎉🎉🎉 Time to celebrate! Today is {holiday_name}! 🎉🎉🎉'
     embed = discord.Embed(title=holiday_name,
@@ -47,22 +60,37 @@ def get_messages(holiday_name: str, holiday_link, member):
     response2 = f'{member.mention} let everyone know how you\'re celebrating {holiday_name}!'
     return response1, embed, response2
 
+def get_history_messages(history_year: str, history_event: str, history_description: str):
+    ## Create messages/embeds that the bot will send out
+    response1 = f'🎉🥂🎆 Let\'s celebrate history! On this day in {history_year}, {history_event} 🎆🥂🎉'
+    response2 = f'{history_description}'
+    return response1, response2
+
 ## Run CelebrationBot message with !celebrate command
 @bot.command(name='celebrate')
 async def my_command(ctx):
     
     holiday_name, holiday_link = get_holiday()
     member = get_random_member(ctx)
-    response1, embed, response2 = get_messages(holiday_name,holiday_link,member)
+    response1, embed, response2 = get_holiday_messages(holiday_name,holiday_link,member)
 
     await ctx.send(response1)
     await ctx.send(embed=embed)
     await ctx.send(response2)
 
-## Run CelebrationBot message at 10:00AM Eastern time every day
-@tasks.loop(time=runtime)
+## Run CelebrationBot historical event message with !history command
+@bot.command(name='history')
+async def my_command(ctx):
+    
+    history_year, history_event, history_description = get_history()
+    response1, response2 = get_history_messages(history_year, history_event, history_description)
+
+    await ctx.send(response1)
+    await ctx.send(response2)
+
+## Run CelebrationBot celebration message at 10:00AM Eastern time every day
+@tasks.loop(time=holiday_runtime)
 async def my_task():
-    print("My task is running!")
     holiday_name, holiday_link = get_holiday()
     ## Get the channel that the bot messages will be sent to
     ## Defaults to first channel in the server
@@ -77,35 +105,31 @@ async def my_task():
     member = get_random_member(channel)
     print(member)
     
-    response1, embed, response2 = get_messages(holiday_name,holiday_link,member)
+    response1, embed, response2 = get_holiday_messages(holiday_name,holiday_link,member)
     await channel.send(response1)
     await channel.send(embed=embed)
     await channel.send(response2)
 
-## Run CelebrationBot message on bot startup
+## Run CelebrationBot history message at 12:00PM Eastern time every day
+@tasks.loop(time=history_runtime)
+async def my_task():
+    history_year, history_event, history_description = get_history()
+    ## Get the channel that the bot messages will be sent to
+    ## Defaults to first channel in the server
+    text_channel_list = []
+    for server in bot.guilds:
+        for channel in server.channels:
+            if str(channel.type) == 'text':
+                text_channel_list.append(channel)
+    channel = text_channel_list.pop(0)
+    
+    response1, response2 = get_history_messages(history_year, history_event, history_description)
+    await channel.send(response1)
+    await channel.send(response2)
+
+## Don't run anything on bot startup
 @bot.event
-async def on_ready():
-    ## Start the my_task loop run first
-    my_task.start()
-    ## Run CelebrationBot message next
-    holiday_name, holiday_link = get_holiday()
-
-    ## Get the channel that the bot messages will be sent to
-    ## Defaults to first channel in the server
-    text_channel_list = []
-    for server in bot.guilds:
-        for channel in server.channels:
-            if str(channel.type) == 'text':
-                text_channel_list.append(channel)
-    channel = text_channel_list.pop(0)
-    print(channel)
-
-    member = get_random_member(channel)
-    print(member)
-    
-    response1, embed, response2 = get_messages(holiday_name,holiday_link,member)
-    await channel.send(response1)
-    await channel.send(embed=embed)
-    await channel.send(response2)
+async def on_ready(): 
+    pass
 
 bot.run(TOKEN)
