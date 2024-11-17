@@ -90,7 +90,7 @@ async def my_command(ctx):
 
 ## Run CelebrationBot celebration message at 10:00AM Eastern time every day
 @tasks.loop(time=holiday_runtime)
-async def my_task():
+async def holidays_task():
     holiday_name, holiday_link = get_holiday()
     ## Get the channel that the bot messages will be sent to
     ## Defaults to first channel in the server
@@ -112,7 +112,7 @@ async def my_task():
 
 ## Run CelebrationBot history message at 12:00PM Eastern time every day
 @tasks.loop(time=history_runtime)
-async def my_task():
+async def history_task():
     history_year, history_event, history_description = get_history()
     ## Get the channel that the bot messages will be sent to
     ## Defaults to first channel in the server
@@ -127,9 +127,10 @@ async def my_task():
     await channel.send(response1)
     await channel.send(response2)
 
-## Don't run anything on bot startup
+## On bot startup initialize the timed tasks
 @bot.event
 async def on_ready(): 
-    pass
-
+    ## Start the holiday and history task loop runs first
+    holidays_task.start()
+    history_task.start()
 bot.run(TOKEN)
